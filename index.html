@@ -2,7 +2,7 @@
 <html lang="zh-HK">
 <head>
   <meta charset="UTF-8" />
-  <title>1914–1919：戰爭與和平任務 v5.8.1</title>
+  <title>1914–1919：戰爭與和平任務 v5.9 場地版.1</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
   <style>
@@ -699,44 +699,131 @@
         const sy = this.y | 0;
         ctx.save();
         if (this.type === "ground") {
-          // 更像戰場磚石地台：加頂層、陰影、破損紋理，避免舊式純 tile 感。
-          ctx.fillStyle = "#522b25";
+          // v5.9：地面改為一戰戰場泥沙地，不再使用磚牆格仔。
+          const scene = this.x < 1050 ? 0 : (this.x < 2150 ? 1 : 2);
+          const top = scene === 0 ? "#8b6a3e" : (scene === 1 ? "#6a5135" : "#9a7a4b");
+          const mid = scene === 0 ? "#6d5133" : (scene === 1 ? "#493726" : "#70583a");
+          const deep = scene === 0 ? "#37291e" : (scene === 1 ? "#241b16" : "#3b2e21");
+
+          const g = ctx.createLinearGradient(0, sy, 0, sy + this.h);
+          g.addColorStop(0, top);
+          g.addColorStop(0.18, mid);
+          g.addColorStop(1, deep);
+          ctx.fillStyle = g;
           ctx.fillRect(sx, sy, this.w, this.h);
-          ctx.fillStyle = "#b94b3f";
-          ctx.fillRect(sx, sy, this.w, 10);
-          ctx.fillStyle = "rgba(255,220,170,0.16)";
-          ctx.fillRect(sx, sy + 2, this.w, 2);
-          ctx.strokeStyle = "rgba(36,18,18,0.58)";
-          ctx.lineWidth = 1;
-          const brickH = 10, brickW = 22;
-          for (let yy = sy + 10; yy < sy + this.h; yy += brickH) {
+
+          // 沙地表層：不規則起伏，令平台不像磚地。
+          ctx.fillStyle = scene === 1 ? "#84643f" : "#a9824c";
+          ctx.beginPath();
+          ctx.moveTo(sx, sy + 9);
+          for (let xx = 0; xx <= this.w; xx += 18) {
+            const wave = Math.sin((this.x + xx) * 0.027) * 4 + Math.sin((this.x + xx) * 0.071) * 2;
+            ctx.lineTo(sx + xx, sy + 9 + wave);
+          }
+          ctx.lineTo(sx + this.w, sy + 28);
+          ctx.lineTo(sx, sy + 28);
+          ctx.closePath();
+          ctx.fill();
+
+          // 泥坑／炮坑
+          for (let xx = sx + 18; xx < sx + this.w; xx += 78) {
+            const cy = sy + 28 + (((this.x + xx) / 13) | 0) % 22;
+            ctx.fillStyle = "rgba(20,14,10,0.28)";
             ctx.beginPath();
-            ctx.moveTo(sx, yy); ctx.lineTo(sx + this.w, yy); ctx.stroke();
-            const off = ((yy / brickH) | 0) % 2 ? brickW / 2 : 0;
-            for (let xx = sx - off; xx < sx + this.w; xx += brickW) {
-              ctx.beginPath(); ctx.moveTo(xx, yy); ctx.lineTo(xx, yy + brickH); ctx.stroke();
+            ctx.ellipse(xx, cy, 18 + (((this.x + xx) | 0) % 9), 6, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "rgba(190,155,95,0.13)";
+            ctx.beginPath();
+            ctx.ellipse(xx - 3, cy - 2, 10, 2.2, 0, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          // 戰壕木板／沙包，三個場景用不同密度；中段戰場最明顯。
+          ctx.strokeStyle = "rgba(55,34,19,0.65)";
+          ctx.lineWidth = 3;
+          for (let xx = sx + ((this.x / 9) % 38); xx < sx + this.w; xx += (scene === 1 ? 48 : 76)) {
+            const y1 = sy + 45 + ((xx / 11) | 0) % 16;
+            ctx.beginPath();
+            ctx.moveTo(xx, y1);
+            ctx.lineTo(xx + 34, y1 + 9);
+            ctx.stroke();
+          }
+          if (scene === 1) {
+            ctx.fillStyle = "rgba(78,55,34,0.62)";
+            for (let xx = sx + 26; xx < sx + this.w; xx += 92) {
+              ctx.fillRect(xx, sy + 15, 22, 9);
+              ctx.fillRect(xx + 18, sy + 18, 22, 9);
             }
           }
-          ctx.fillStyle = "rgba(0,0,0,0.24)";
-          ctx.fillRect(sx, sy + this.h - 16, this.w, 16);
-          ctx.fillStyle = "rgba(255,255,255,0.07)";
-          for (let xx = sx + 10; xx < sx + this.w; xx += 70) {
-            ctx.fillRect(xx, sy + 18 + ((xx/7)|0)%40, 18, 3);
+
+          // 底部陰影，維持平台碰撞邊界清楚。
+          ctx.fillStyle = "rgba(0,0,0,0.27)";
+          ctx.fillRect(sx, sy + this.h - 18, this.w, 18);
+          ctx.fillStyle = "rgba(255,230,170,0.07)";
+          for (let xx = sx + 12; xx < sx + this.w; xx += 64) {
+            ctx.fillRect(xx, sy + 12 + ((xx/5)|0)%30, 16, 2);
           }
         } else {
-          // 金屬橋台：更清楚的邊框、鉚釘、冷光。
-          ctx.fillStyle = "rgba(38,48,64,0.95)";
-          ctx.fillRect(sx, sy, this.w, this.h);
-          ctx.fillStyle = "#9fb2c8";
-          ctx.fillRect(sx, sy, this.w, 4);
-          ctx.fillStyle = "#5b6c80";
-          ctx.fillRect(sx, sy + this.h - 4, this.w, 4);
-          ctx.strokeStyle = "rgba(210,225,245,0.35)";
-          ctx.lineWidth = 1;
-          for (let xx = sx + 12; xx < sx + this.w; xx += 28) {
-            ctx.beginPath(); ctx.arc(xx, sy + 8, 2, 0, Math.PI * 2); ctx.stroke();
+          // v6.0：平台改成戰地工事風格——木板、防線、沙包，而非冷金屬橋台。
+          const scene = this.x < 1050 ? 0 : (this.x < 2150 ? 1 : 2);
+          const plank = scene === 1 ? "#6a4a2e" : "#7a5938";
+          const darkPlank = scene === 1 ? "#4a3322" : "#5a4129";
+          const sandbag = scene === 1 ? "#7e7159" : "#93846b";
+          const bagShade = scene === 1 ? "#5d5243" : "#6f6554";
+          const wire = "rgba(215,222,230,0.55)";
+
+          // 木板平台
+          ctx.fillStyle = plank;
+          ctx.fillRect(sx, sy + 4, this.w, this.h - 4);
+          ctx.fillStyle = darkPlank;
+          for (let xx = sx; xx < sx + this.w; xx += 16) {
+            ctx.fillRect(xx, sy + 4, 3, this.h - 4);
           }
-          ctx.fillStyle = "rgba(0,0,0,0.22)";
+          ctx.fillStyle = "rgba(255,235,195,0.10)";
+          for (let xx = sx + 8; xx < sx + this.w; xx += 26) {
+            ctx.fillRect(xx, sy + 7 + ((xx/9)|0)%4, 9, 2);
+          }
+
+          // 前方沙包防線
+          for (let xx = sx + 5; xx < sx + this.w - 12; xx += 18) {
+            const yy = sy - 6 + (((xx + this.x)/21)|0)%2;
+            ctx.fillStyle = sandbag;
+            ctx.beginPath();
+            ctx.ellipse(xx, yy + 8, 10, 6, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = bagShade;
+            ctx.beginPath();
+            ctx.ellipse(xx + 2, yy + 9, 4, 2, 0, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          // 木樁／支撐
+          ctx.strokeStyle = darkPlank;
+          ctx.lineWidth = 3;
+          for (let xx = sx + 10; xx < sx + this.w; xx += 34) {
+            ctx.beginPath();
+            ctx.moveTo(xx, sy + this.h);
+            ctx.lineTo(xx + 5, sy + 8);
+            ctx.stroke();
+          }
+
+          // 少量鐵絲網感，增加前線味道
+          if (scene === 1 || this.w >= 150) {
+            ctx.strokeStyle = wire;
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.moveTo(sx + 6, sy - 2);
+            ctx.lineTo(sx + this.w - 6, sy - 2);
+            ctx.stroke();
+            for (let xx = sx + 10; xx < sx + this.w - 8; xx += 12) {
+              ctx.beginPath();
+              ctx.moveTo(xx - 3, sy - 6); ctx.lineTo(xx + 3, sy + 2);
+              ctx.moveTo(xx + 3, sy - 6); ctx.lineTo(xx - 3, sy + 2);
+              ctx.stroke();
+            }
+          }
+
+          ctx.fillStyle = "rgba(0,0,0,0.24)";
           ctx.fillRect(sx, sy + this.h, this.w, 4);
         }
         ctx.restore();
@@ -1771,7 +1858,7 @@
           body: JSON.stringify(payload)
         }).then(() => {
           this.finalStatus = "成績已自動上載。";
-          loadLeaderboard();
+          // 不自動刷新網上榜，避免預覽環境一開即要求網絡權限。
         }).catch(() => {
           this.finalStatus = "成績未能上載，請檢查網絡或 Apps Script 權限。";
         });
@@ -1809,7 +1896,7 @@
         this.buildLevel();
         const overlay = document.getElementById("startOverlay");
         if (overlay) overlay.style.display = "flex";
-        loadLeaderboard();
+        // 不自動刷新網上榜，避免預覽環境一開即要求網絡權限。
       }
 
       forceEnemiesToGround() {
@@ -1929,31 +2016,31 @@
           const en = new GrenadierEnemy(x, beamY - 31, min, max, opts);
           en.fixedY = beamY - en.h;
           en.standOnBeams = true;
-          en.standOnBeams = true;
           this.enemies.push(en);
         };
 
+        // 地面與平台守軍數量改為接近 50/50，避免只剩地面兵。
+        // easy：地面 6 / 平台 6
         addEnemy(650,  groundY - 30, 560,  940);
         addEnemy(1120, groundY - 30, 980,  1340);
         addEnemy(1600, groundY - 30, 1380, 1700);
         addGrenadier(1860, groundY - 30, 1740, 2020, { range: 360 });
-        addEnemy(2520, groundY - 30, 2420, 2640);
+        addShooter(2140, groundY - 30, 2060, 2380, { patrol: true,  vx: 20, range: 500, bulletSpeed: 360 });
         addEnemy(2820, groundY - 30, 2700, 2920);
 
-        addShooter(1280, groundY - 30, 1240, 1340, { patrol: false, range: 460, bulletSpeed: 380 });
-        addShooter(2140, groundY - 30, 2060, 2380, { patrol: true,  vx: 20, range: 500, bulletSpeed: 360 });
-        addShooter(2925, groundY - 30, 2920, 3240, { patrol: false, range: 520, bulletSpeed: 420 });
-
-        // 第二／第三行加入少量守兵，畫面更有戰區感，但數量保持克制，避免過難。
         addBeamEnemy(865, 300, 840, 1000);
+        addBeamShooter(905, 250, 820, 960, { patrol: false, range: 320, bulletSpeed: 330 });
+        addBeamEnemy(1245, 280, 1240, 1400);
         addBeamGrenadier(1695, 240, 1680, 1810, { range: 300 });
+        addBeamEnemy(1880, 280, 1820, 1970);
         addBeamShooter(3045, 320, 3040, 3180, { patrol: false, range: 320, bulletSpeed: 330 });
 
         if (this.mode === "hard") {
-          addEnemy(720, groundY - 30, 560, 940);
-          addGrenadier(1760, groundY - 30, 1740, 2020, { range: 380 });
-          addShooter(2480, groundY - 30, 2420, 2640, { patrol: false, range: 500, bulletSpeed: 420 });
+          // hard：額外增加 2 地面 + 2 平台，保持比例接近。
+          addShooter(1280, groundY - 30, 1240, 1340, { patrol: false, range: 460, bulletSpeed: 380 });
+          addGrenadier(2520, groundY - 30, 2420, 2640, { range: 380 });
           addBeamEnemy(2145, 270, 2140, 2290);
+          addBeamGrenadier(2890, 360, 2860, 3020, { range: 260 });
         }
 
         // 安全修正：一般敵軍貼地；只有明確標記的守兵才會固定在第二／第三行平台。
@@ -2722,16 +2809,16 @@
         ctx.save();
         const alpha = Math.min(1, this.sceneBannerTimer / 0.35, 1) * Math.min(1, (1.9 - this.sceneBannerTimer) / 0.3 + 0.15);
         ctx.globalAlpha = Math.max(0.25, Math.min(0.95, alpha));
-        const w = Math.max(180, Math.min(280, ctx.measureText ? 210 : 210));
-        const x = this.W - 242;
-        ctx.fillStyle = 'rgba(0,0,0,0.58)';
-        ctx.fillRect(x, 18, 224, 34);
-        ctx.strokeStyle = 'rgba(255,209,102,0.72)';
-        ctx.strokeRect(x + 0.5, 18.5, 223, 33);
+        const x = this.W / 2 - 210;
+        ctx.fillStyle = 'rgba(0,0,0,0.68)';
+        ctx.fillRect(x, 20, 420, 44);
+        ctx.strokeStyle = 'rgba(255,209,102,0.82)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 0.5, 20.5, 419, 43);
         ctx.fillStyle = '#ffd166';
-        ctx.font = '800 14px system-ui, sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText(title, x + 12, 40);
+        ctx.font = '900 20px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(title, this.W / 2, 49);
         ctx.restore();
       }
 
@@ -2935,7 +3022,6 @@
     }
     const loadLeaderboardBtn = document.getElementById("btnLoadLeaderboard");
     if (loadLeaderboardBtn) loadLeaderboardBtn.addEventListener("click", loadLeaderboard);
-    loadLeaderboard();
   })();
   </script>
 </body>
