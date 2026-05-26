@@ -782,32 +782,32 @@
         const sx = (this.x - camX) | 0;
         const sy = (this.y + bobY) | 0;
         const near = player && Math.abs((player.x + player.w / 2) - (this.x + this.w / 2)) < 135;
+        const outerR = near ? 19 : 14;
+        const innerR = near ? 13 : 10;
 
         ctx.save();
-        // 情報資訊：金色圓形情報徽章 + 放大鏡，和回血羊皮紙明確分開
-        ctx.fillStyle = 'rgba(255,209,102,0.18)';
-        ctx.beginPath(); ctx.arc(sx + 13, sy + 13, 25, 0, Math.PI * 2); ctx.fill();
+        if (near) {
+          ctx.fillStyle = 'rgba(255,209,102,0.18)';
+          ctx.beginPath(); ctx.arc(sx + 13, sy + 13, 22, 0, Math.PI * 2); ctx.fill();
+        }
         ctx.fillStyle = '#1b1208';
-        ctx.beginPath(); ctx.arc(sx + 13, sy + 13, 18, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(sx + 13, sy + 13, outerR, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#f2c14e';
-        ctx.beginPath(); ctx.arc(sx + 13, sy + 13, 15, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(sx + 13, sy + 13, innerR + 2, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = '#7a4f14';
         ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(sx + 13, sy + 13, 15, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(sx + 13, sy + 13, innerR + 2, 0, Math.PI * 2); ctx.stroke();
         ctx.fillStyle = '#fff1b5';
-        ctx.beginPath(); ctx.arc(sx + 13, sy + 13, 10, 0, Math.PI * 2); ctx.fill();
-
-        // 放大鏡符號
+        ctx.beginPath(); ctx.arc(sx + 13, sy + 13, innerR - 2, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = '#1b1f2e';
-        ctx.lineWidth = 2.4;
-        ctx.beginPath(); ctx.arc(sx + 11, sy + 11, 5.2, 0, Math.PI * 2); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(sx + 15, sy + 15); ctx.lineTo(sx + 21, sy + 21); ctx.stroke();
+        ctx.lineWidth = 2.2;
+        ctx.beginPath(); ctx.arc(sx + 11, sy + 11, 4.7, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(sx + 15, sy + 15); ctx.lineTo(sx + 20, sy + 20); ctx.stroke();
         ctx.font = '900 10px system-ui, sans-serif';
         ctx.textAlign = 'center';
         ctx.fillStyle = '#1b1f2e';
         ctx.fillText('?', sx + 12, sy + 15);
 
-        // 只在接近時顯示文字，減少畫面雜訊
         if (near) {
           const label = '情報資訊';
           ctx.font = 'bold 12px system-ui, sans-serif';
@@ -852,17 +852,22 @@
     }
 
     class GroundShell {
-      constructor(x, y, vx, vy = -260) {
+      constructor(x, y, vx, vy = -260, markerX = null, markerY = null, markerLife = 0.95) {
         this.x = x; this.y = y;
         this.vx = vx; this.vy = vy;
         this.w = 14; this.h = 14;
         this.dead = false;
         this.life = 4.5;
+        this.markerX = markerX;
+        this.markerY = markerY;
+        this.markerLife = markerLife;
+        this.markerMax = markerLife;
       }
       get aabb() { return new AABB(this.x, this.y, this.w, this.h); }
       update(dt, game) {
         if (this.dead) return;
         this.life -= dt;
+        this.markerLife = Math.max(0, this.markerLife - dt);
         if (this.life <= 0) { this.dead = true; return; }
         this.vy += 520 * dt;
         this.x += this.vx * dt;
@@ -882,6 +887,20 @@
         const sx = (this.x - camX) | 0;
         const sy = this.y | 0;
         ctx.save();
+        if (this.markerX != null && this.markerLife > 0) {
+          const a = this.markerLife / Math.max(0.01, this.markerMax);
+          const msx = (this.markerX - camX) | 0;
+          const msy = (this.markerY ?? sy + 24) | 0;
+          ctx.strokeStyle = `rgba(255,80,90,${0.22 + 0.58 * a})`;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(msx, msy, 11 + (1 - a) * 8, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.fillStyle = `rgba(255,80,90,${0.08 + 0.10 * a})`;
+          ctx.beginPath();
+          ctx.arc(msx, msy, 7 + (1 - a) * 5, 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.fillStyle = 'rgba(0,0,0,0.18)';
         ctx.beginPath();
         ctx.ellipse(sx + 7, sy + 15, 8, 3, 0, 0, Math.PI * 2);
@@ -957,14 +976,14 @@
 
         const onScreen = (this.x - game.cameraX) > -160 && (this.x - game.cameraX) < game.W + 160;
         this.alertCooldown = Math.max(0, this.alertCooldown - dt);
-        if (onScreen && game.player.x > 520 && this.alertCooldown <= 0) {
-          game.bomberWarningTimer = Math.max(game.bomberWarningTimer || 0, 1.6);
-          this.alertCooldown = 4.8;
-        }
 
         this.dropTimer -= dt;
-        if (onScreen && this.dropTimer <= 0.45) {
-          game.bombFlashTimer = Math.max(game.bombFlashTimer || 0, 0.18);
+        if (onScreen && game.player.x > 520 && this.dropTimer <= 1.0 && this.alertCooldown <= 0) {
+          game.bomberWarningTimer = Math.max(game.bomberWarningTimer || 0, 0.95);
+          this.alertCooldown = 1.25;
+        }
+        if (onScreen && this.dropTimer <= 0.28) {
+          game.bombFlashTimer = Math.max(game.bombFlashTimer || 0, 0.16);
         }
         if (onScreen && this.dropTimer <= 0) {
           this.dropTimer = game.mode === "hard" ? 1.45 + Math.random() * 1.2 : 2.35 + Math.random() * 1.8;
@@ -1108,6 +1127,8 @@
         this.attackCooldown = 0.7 + Math.random() * 0.5;
         this.chargeTimer = 0;
         this.warnTimer = 0;
+        this.fixedY = null;
+        this.role = "步兵";
       }
       get aabb() { return new AABB(this.x, this.y, this.w, this.h); }
       update(dt, game) {
@@ -1118,11 +1139,11 @@
 
         const px = game.player.x + game.player.w * 0.5;
         const ex = this.x + this.w * 0.5;
-        const near = Math.abs(px - ex) < 125 && Math.abs(game.player.y - this.y) < 48;
+        const near = Math.abs(px - ex) < 128 && Math.abs(game.player.y - this.y) < 52;
         if (near && this.attackCooldown <= 0 && this.chargeTimer <= 0) {
-          this.warnTimer = 0.18;
+          this.warnTimer = 0.22;
           this.chargeTimer = 0.62;
-          this.attackCooldown = 1.8 + Math.random() * 0.8;
+          this.attackCooldown = 1.85 + Math.random() * 0.7;
         }
 
         if (this.chargeTimer > 0) {
@@ -1138,34 +1159,32 @@
         if (this.x < this.patrolMin) { this.x = this.patrolMin; this.moveDir = 1; }
         if (this.x + this.w > this.patrolMax) { this.x = this.patrolMax - this.w; this.moveDir = -1; }
 
-        // 陸上步兵不再使用平台重力碰撞，避免被二層平台頂上天空。
-        this.y = game.groundY - this.h;
+        this.y = (this.fixedY != null) ? this.fixedY : (game.groundY - this.h);
         this.vy = 0;
       }
       draw(ctx, camX, scale) {
         if (!this.alive) return;
-        const sx = (this.x - camX) | 0, sy = Math.max(399, this.y | 0);
+        const sx = (this.x - camX) | 0, sy = (this.y | 0);
         const step = Math.floor(Math.sin(this.anim) * 2);
         ctx.save();
-        // v5.8 修正：畫敵軍時必須同時 translate 到 sy；舊版只移動 x，令敵軍畫在天空。
         if (this.face < 0) { ctx.translate(sx + this.w + 10, sy); ctx.scale(-1, 1); } else { ctx.translate(sx - 2, sy); }
         ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.fillRect(2, 30, 28, 4);
-        ctx.fillStyle = '#334d34'; ctx.fillRect(8, 11, 13, 16);           // 外套
-        ctx.fillStyle = '#48633e'; ctx.fillRect(5, 13, 5, 9);             // 手臂
-        ctx.fillStyle = '#263726'; ctx.fillRect(19, 13, 7, 10);           // 背包
-        ctx.fillStyle = '#d2a76f'; ctx.fillRect(10, 5, 9, 8);             // 面
-        ctx.fillStyle = '#4e5a46'; ctx.fillRect(7, 3, 15, 5);             // 鋼盔
-        ctx.fillStyle = '#2a3026'; ctx.fillRect(6, 7, 16, 2);             // 帽沿
-        ctx.fillStyle = '#6a472d'; ctx.fillRect(3, 16, 18, 3);            // 槍托
-        ctx.fillStyle = '#1c1f20'; ctx.fillRect(19, 17, 12, 2);           // 槍管
-        ctx.fillStyle = '#d8d8d8'; ctx.fillRect(29, 16, 5, 3);            // 刺刀
+        ctx.fillStyle = '#39563a'; ctx.fillRect(8, 11, 13, 16);
+        ctx.fillStyle = '#57764a'; ctx.fillRect(5, 13, 5, 9);
+        ctx.fillStyle = '#273527'; ctx.fillRect(19, 13, 7, 10);
+        ctx.fillStyle = '#d2a76f'; ctx.fillRect(10, 5, 9, 8);
+        ctx.fillStyle = '#4e5a46'; ctx.fillRect(7, 3, 15, 5);
+        ctx.fillStyle = '#2a3026'; ctx.fillRect(6, 7, 16, 2);
+        ctx.fillStyle = '#6a472d'; ctx.fillRect(3, 16, 18, 3);
+        ctx.fillStyle = '#1c1f20'; ctx.fillRect(19, 17, 12, 2);
+        ctx.fillStyle = '#d8d8d8'; ctx.fillRect(29, 16, 5, 3);
         ctx.fillStyle = '#2c2c2c';
         ctx.fillRect(8, 26, 5, 5); ctx.fillRect(17, 26, 5, 5);
         ctx.fillStyle = '#141414';
         ctx.fillRect(6, 30 + (step>0?1:0), 8, 3); ctx.fillRect(16, 30 + (step<0?1:0), 8, 3);
         if (this.warnTimer > 0) {
           ctx.fillStyle = '#ff687d';
-          ctx.font = '900 14px system-ui, sans-serif';
+          ctx.font = '900 15px system-ui, sans-serif';
           ctx.fillText('!', 11, -2);
         }
         if (this.chargeTimer > 0 && Math.floor(performance.now()/110)%2===0) {
@@ -1180,14 +1199,18 @@
       constructor(x, y, patrolMin, patrolMax, opts = {}) {
         super(x, y, patrolMin, patrolMax);
         this.patrol = !!opts.patrol;
-        this.patrolSpeed = Math.max(16, opts.vx ?? 22);
-        this.moveDir = this.patrolSpeed >= 0 ? 1 : -1;
+        this.patrolSpeed = Math.max(16, Math.abs(opts.vx ?? 22));
+        this.moveDir = (opts.vx ?? 22) >= 0 ? 1 : -1;
         this.cooldown = 0.9 + Math.random() * 0.6;
         this.range = opts.range ?? 480;
         this.bulletSpeed = opts.bulletSpeed ?? 380;
         this.burstLeft = 0;
         this.burstGap = 0;
         this.attackFlash = 0;
+        this.aimTimer = 0;
+        this.warnTimer = 0;
+        this.pendingAttack = null;
+        this.role = "槍兵";
       }
       fireBullet(game, angleDeg = 0) {
         const rad = angleDeg * Math.PI / 180;
@@ -1196,70 +1219,65 @@
         game.bullets.push(new Bullet(bx, by, Math.cos(rad) * this.bulletSpeed * this.face, Math.sin(rad) * this.bulletSpeed));
         this.attackFlash = 0.12;
       }
-      fireShell(game) {
-        const bx = this.face > 0 ? (this.x + this.w) : (this.x - 8);
-        const by = this.y + 8;
-        const vx = this.face * (160 + Math.random() * 40);
-        const vy = -230 - Math.random() * 60;
-        game.groundShells.push(new GroundShell(bx, by, vx, vy));
-        this.attackFlash = 0.18;
-      }
       update(dt, game) {
         if (!this.alive) return;
         this.anim += dt * 6;
         this.attackFlash = Math.max(0, this.attackFlash - dt);
+        this.warnTimer = Math.max(0, this.warnTimer - dt);
+        this.aimTimer = Math.max(0, this.aimTimer - dt);
 
-        if (this.patrol) {
+        if (this.patrol && this.aimTimer <= 0) {
           this.vx = this.moveDir * Math.abs(this.patrolSpeed);
           this.x += this.vx * dt;
           if (this.x < this.patrolMin) { this.x = this.patrolMin; this.moveDir = 1; }
           if (this.x + this.w > this.patrolMax) { this.x = this.patrolMax - this.w; this.moveDir = -1; }
         }
 
-        // 陸上槍兵鎖定地面高度，不再與二層平台碰撞。
-        this.y = game.groundY - this.h;
+        this.y = (this.fixedY != null) ? this.fixedY : (game.groundY - this.h);
         this.vy = 0;
 
         const px = game.player.x + game.player.w * 0.5;
         const ex = this.x + this.w * 0.5;
         const dx = px - ex;
         this.face = dx >= 0 ? 1 : -1;
-
         const onScreen = (this.x - game.cameraX) > -220 && (this.x - game.cameraX) < game.W + 220;
         const near = Math.abs(dx) <= this.range && Math.abs((game.player.y - this.y)) < 180;
 
         this.cooldown -= dt;
         this.burstGap -= dt;
         if (this.burstLeft > 0 && this.burstGap <= 0) {
-          this.fireBullet(game, -8 + Math.random() * 12);
+          this.fireBullet(game, -6 + Math.random() * 10);
           this.burstLeft -= 1;
-          this.burstGap = 0.13;
+          this.burstGap = 0.14;
         }
 
-        if (onScreen && near && this.cooldown <= 0 && this.burstLeft <= 0) {
-          const r = Math.random();
-          if (r < 0.38) {
-            this.burstLeft = 2;
-            this.burstGap = 0;
-            this.cooldown = 1.65 + Math.random() * 0.45;
-          } else if (r < 0.72 && Math.abs(dx) > 140) {
-            this.fireShell(game);
-            this.cooldown = 2.1 + Math.random() * 0.75;
+        if (this.pendingAttack && this.aimTimer <= 0) {
+          if (this.pendingAttack.type === 'burst') {
+            this.fireBullet(game, this.pendingAttack.angle);
+            this.burstLeft = 1;
+            this.burstGap = 0.14;
           } else {
-            const ang = Math.abs(dx) > 180 ? -14 : -4;
-            this.fireBullet(game, ang);
-            this.cooldown = 1.2 + Math.random() * 0.6;
+            this.fireBullet(game, this.pendingAttack.angle);
           }
+          this.pendingAttack = null;
+        }
+
+        if (onScreen && near && this.cooldown <= 0 && this.burstLeft <= 0 && !this.pendingAttack) {
+          const angle = Math.abs(dx) > 180 ? -12 : -4;
+          const type = Math.random() < 0.42 ? 'burst' : 'shot';
+          this.pendingAttack = { type, angle };
+          this.warnTimer = 0.18;
+          this.aimTimer = 0.36;
+          this.cooldown = type === 'burst' ? (1.75 + Math.random() * 0.45) : (1.25 + Math.random() * 0.6);
         }
       }
       draw(ctx, camX, scale) {
         if (!this.alive) return;
-        const sx = (this.x - camX) | 0, sy = Math.max(399, this.y | 0);
+        const sx = (this.x - camX) | 0, sy = (this.y | 0);
         ctx.save();
-        // v5.8 修正：槍兵同樣要 translate 到 sy，否則會畫到天空。
         if (this.face < 0) { ctx.translate(sx + this.w + 28, sy); ctx.scale(-1, 1); } else { ctx.translate(sx - 2, sy); }
-        ctx.fillStyle = 'rgba(0,0,0,0.24)'; ctx.fillRect(2, 30, 30, 4);
-        ctx.fillStyle = '#2f4930'; ctx.fillRect(8, 11, 14, 16);
+        ctx.fillStyle = 'rgba(0,0,0,0.24)'; ctx.fillRect(2, 30, 32, 4);
+        ctx.fillStyle = '#384d3a'; ctx.fillRect(8, 11, 14, 16);
         ctx.fillStyle = '#d2a76f'; ctx.fillRect(10, 5, 9, 8);
         ctx.fillStyle = '#4f5b47'; ctx.fillRect(7, 3, 16, 5);
         ctx.fillStyle = '#293128'; ctx.fillRect(6, 7, 17, 2);
@@ -1269,9 +1287,119 @@
         ctx.fillStyle = '#171717'; ctx.fillRect(30, 17, 18, 2);
         ctx.fillStyle = '#151515'; ctx.fillRect(6, 31, 8, 3); ctx.fillRect(17, 31, 8, 3);
         ctx.fillStyle = '#2b2b2b'; ctx.fillRect(8, 27, 5, 5); ctx.fillRect(18, 27, 5, 5);
+        if (this.warnTimer > 0) {
+          ctx.fillStyle = '#ff687d';
+          ctx.font = '900 15px system-ui, sans-serif';
+          ctx.fillText('!', 12, -2);
+        }
+        if (this.aimTimer > 0 && this.pendingAttack) {
+          ctx.strokeStyle = 'rgba(255,80,90,0.95)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(47, 18);
+          ctx.lineTo(87, 16);
+          ctx.stroke();
+        }
         if (this.attackFlash > 0) {
           ctx.fillStyle = '#ffb703'; ctx.fillRect(47, 15, 5, 5);
           ctx.fillStyle = '#ffd166'; ctx.fillRect(51, 16, 4, 3);
+        }
+        ctx.restore();
+      }
+    }
+
+    class GrenadierEnemy extends Enemy {
+      constructor(x, y, patrolMin, patrolMax, opts = {}) {
+        super(x, y, patrolMin, patrolMax);
+        this.role = '擲彈兵';
+        this.patrolSpeed = opts.patrolSpeed ?? 18;
+        this.throwCooldown = 1.7 + Math.random() * 0.7;
+        this.throwTimer = 0;
+        this.warnTimer = 0;
+        this.range = opts.range ?? 360;
+        this.pending = null;
+      }
+      predictLanding(vx, vy, game) {
+        const startX = this.face > 0 ? (this.x + this.w + 4) : (this.x - 8);
+        const startY = this.y + 8;
+        const a = 260;
+        const b = vy;
+        const c = startY - (game.groundY - 6);
+        const disc = Math.max(0, b * b - 4 * a * c);
+        const t = Math.max(0.35, (-b + Math.sqrt(disc)) / (2 * a));
+        return { x: startX + vx * t, y: game.groundY - 4 };
+      }
+      throwGrenade(game) {
+        const vx = this.face * (155 + Math.random() * 28);
+        const vy = -245 - Math.random() * 24;
+        const startX = this.face > 0 ? (this.x + this.w) : (this.x - 8);
+        const startY = this.y + 8;
+        const landing = this.predictLanding(vx, vy, game);
+        game.groundShells.push(new GroundShell(startX, startY, vx, vy, landing.x, landing.y, 1.0));
+      }
+      update(dt, game) {
+        if (!this.alive) return;
+        this.anim += dt * 5.5;
+        this.warnTimer = Math.max(0, this.warnTimer - dt);
+        this.throwTimer = Math.max(0, this.throwTimer - dt);
+        this.throwCooldown = Math.max(0, this.throwCooldown - dt);
+
+        if (this.throwTimer <= 0) {
+          this.x += this.moveDir * this.patrolSpeed * dt;
+          if (this.x < this.patrolMin) { this.x = this.patrolMin; this.moveDir = 1; }
+          if (this.x + this.w > this.patrolMax) { this.x = this.patrolMax - this.w; this.moveDir = -1; }
+        }
+
+        this.y = (this.fixedY != null) ? this.fixedY : (game.groundY - this.h);
+        this.vy = 0;
+        const px = game.player.x + game.player.w * 0.5;
+        const ex = this.x + this.w * 0.5;
+        const dx = px - ex;
+        this.face = dx >= 0 ? 1 : -1;
+        const onScreen = (this.x - game.cameraX) > -220 && (this.x - game.cameraX) < game.W + 220;
+        const near = Math.abs(dx) <= this.range && Math.abs((game.player.y - this.y)) < 170;
+
+        if (this.pending && this.throwTimer <= 0) {
+          this.throwGrenade(game);
+          this.pending = false;
+        }
+        if (onScreen && near && this.throwCooldown <= 0 && !this.pending) {
+          this.warnTimer = 0.22;
+          this.throwTimer = 0.55;
+          this.throwCooldown = 2.3 + Math.random() * 0.8;
+          this.pending = true;
+        }
+      }
+      draw(ctx, camX, scale) {
+        if (!this.alive) return;
+        const sx = (this.x - camX) | 0, sy = (this.y | 0);
+        ctx.save();
+        if (this.face < 0) { ctx.translate(sx + this.w + 12, sy); ctx.scale(-1, 1); } else { ctx.translate(sx - 2, sy); }
+        ctx.fillStyle = 'rgba(0,0,0,0.24)'; ctx.fillRect(2, 30, 30, 4);
+        ctx.fillStyle = '#30483c'; ctx.fillRect(8, 11, 13, 16);
+        ctx.fillStyle = '#24382d'; ctx.fillRect(19, 12, 9, 12);
+        ctx.fillStyle = '#1c2a22'; ctx.fillRect(5, 13, 5, 10);
+        ctx.fillStyle = '#d2a76f'; ctx.fillRect(10, 5, 9, 8);
+        ctx.fillStyle = '#4e5a46'; ctx.fillRect(7, 3, 15, 5);
+        ctx.fillStyle = '#2a3026'; ctx.fillRect(6, 7, 16, 2);
+        ctx.fillStyle = '#5a4738'; ctx.fillRect(22, 13, 4, 11);
+        ctx.fillStyle = '#7a5d49';
+        ctx.fillRect(21, 14, 6, 3); ctx.fillRect(21, 19, 6, 3);
+        ctx.fillStyle = '#3a3f45';
+        ctx.beginPath(); ctx.arc(5, 17, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#2b2b2b'; ctx.fillRect(8, 27, 5, 5); ctx.fillRect(17, 27, 5, 5);
+        ctx.fillStyle = '#141414'; ctx.fillRect(6, 31, 8, 3); ctx.fillRect(16, 31, 8, 3);
+        if (this.warnTimer > 0) {
+          ctx.fillStyle = '#ff687d';
+          ctx.font = '900 15px system-ui, sans-serif';
+          ctx.fillText('!', 11, -2);
+        }
+        if (this.throwTimer > 0) {
+          ctx.strokeStyle = 'rgba(255,100,110,0.65)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(5, 17, 7, 0, Math.PI * 2);
+          ctx.stroke();
         }
         ctx.restore();
       }
@@ -1445,10 +1573,13 @@
         this.blasts = [];
         this.bomberWarningTimer = 0;
         this.bombFlashTimer = 0;
+        this.sceneTitles = ["戰前歐洲：危機醞釀", "戰場前線：壕溝與空襲", "巴黎近郊：前往凡爾賽"];
+        this.currentScene = 0;
+        this.sceneBannerTimer = 2.0;
 
         this.player = new Player(70, 340);
         this.goal = { x: this.levelWidth - 135, y: 0, w: 135, h: 90 };
-        this.flag = { x: this.levelWidth - 260, y: 0, w: 30, h: 280 };
+        this.flag = { x: this.levelWidth - 260, y: 0, w: 30, h: 340 };
         this.flagCaptured = false;
         this.flagBonusText = "";
         this.flagBonusTimer = 0;
@@ -1582,6 +1713,8 @@
         this.effects.invertTimer = 0;
         this.bomberWarningTimer = 0;
         this.bombFlashTimer = 0;
+        this.currentScene = 0;
+        this.sceneBannerTimer = 2.0;
         this.cameraX = 0;
         this.submitted = false;
         this.finalStatus = "";
@@ -1642,6 +1775,8 @@
         this.effects.invertTimer = 0;
         this.bomberWarningTimer = 0;
         this.bombFlashTimer = 0;
+        this.currentScene = 0;
+        this.sceneBannerTimer = 2.0;
         this.cameraX = 0;
         this.submitted = false;
         this.finalStatus = "";
@@ -1667,7 +1802,13 @@
         const groundY = this.groundY || 430;
         for (const en of this.enemies) {
           if (!en || !en.alive) continue;
-          // 陸上敵軍只可在地面巡邏；禁止因平台碰撞/座標殘留而出現在天空。
+          if (en.fixedY != null) {
+            en.y = en.fixedY;
+            en.vy = 0;
+            en.standOnBeams = true;
+            continue;
+          }
+          // 預設陸上敵軍只在地面巡邏；只有明確設定 fixedY 的守兵可站在第二／第三行平台。
           if (en.y < groundY - 85 || en.y > groundY - en.h + 18) {
             en.y = groundY - en.h;
             en.vy = 0;
@@ -1727,31 +1868,23 @@
 
         this.goal.y = groundY - 74;
         this.goal.x = this.levelWidth - 126;
-        this.flag.y = groundY - 288;
         this.flag.x = this.goal.x - 145;
-        // 旗杆靠近凡爾賽大門；前方只保留兩段跳台，避免平台過密或卡住
-        // 最高分需要由第二層平台助跑跳向旗杆，不能站在旗杆旁邊輕易碰頂。
+        this.flag.y = groundY - this.flag.h;
+        // 旗杆再拉高，最高分需在頂部窄區命中；前方保留兩段跳台，難度更明確。
         this.platforms.push(new Platform(this.flag.x - 430, groundY - 78, 125, 18, "beam"));
-        this.platforms.push(new Platform(this.flag.x - 255, groundY - 148, 95, 18, "beam"));
+        this.platforms.push(new Platform(this.flag.x - 255, groundY - 152, 102, 18, "beam"));
         this.flagCaptured = false;
         this.flagSlideY = this.flag.y + 10;
         this.flagTargetY = this.flag.y + this.flag.h - 50;
 
-        const addDoc = (x, y) => this.items.push(new Item(x, y));
-        // 回血羊皮紙位置刻意避開「情報資訊」觸發點，避免兩種道具疊在同一位置
-        addDoc(300, groundY - 70);
-        addDoc(610, groundY - 92);
-        addDoc(905, 270);
-        addDoc(1210, 300);
-        addDoc(1388, groundY - 78);
-        addDoc(1710, groundY - 70);
-        addDoc(1995, 290);
-        addDoc(2315, groundY - 70);
-        addDoc(2660, groundY - 70);
-        addDoc(2970, 285);
-        addDoc(3150, groundY - 70);
+        const docs = [
+          [300, groundY - 70], [610, groundY - 92], [905, 270], [1210, 300], [1388, groundY - 78],
+          [1710, groundY - 70], [1995, 290], [2315, groundY - 70], [2660, groundY - 70], [2970, 285], [3150, groundY - 70]
+        ];
+        const docsToUse = this.mode === "hard" ? docs.filter((_, i) => ![1,4,7].includes(i)) : docs;
+        for (const [x, y] of docsToUse) this.items.push(new Item(x, y));
 
-        // 原版星星觸發點改為「情報資訊」：只增設位置，不重寫地圖
+        // 「情報資訊」與回血道具分開，避免疊位。
         this.stars.push(new StarTrigger(760, 315, 0));
         this.stars.push(new StarTrigger(1080, 260, 1));
         this.stars.push(new StarTrigger(1520, 330, 2));
@@ -1763,30 +1896,61 @@
 
         const addEnemy = (x, y, min, max) => this.enemies.push(new Enemy(x, y, min, max));
         const addShooter = (x, y, min, max, opts) => this.enemies.push(new ShooterEnemy(x, y, min, max, opts));
+        const addGrenadier = (x, y, min, max, opts = {}) => this.enemies.push(new GrenadierEnemy(x, y, min, max, opts));
+        const addBeamEnemy = (x, beamY, min, max) => {
+          const en = new Enemy(x, beamY - 31, min, max);
+          en.fixedY = beamY - en.h;
+          en.standOnBeams = true;
+          en.patrolSpeed = 22 + Math.random() * 8;
+          en.chargeSpeed = 90 + Math.random() * 18;
+          this.enemies.push(en);
+        };
+        const addBeamShooter = (x, beamY, min, max, opts = {}) => {
+          const en = new ShooterEnemy(x, beamY - 31, min, max, opts);
+          en.fixedY = beamY - en.h;
+          en.standOnBeams = true;
+          this.enemies.push(en);
+        };
+        const addBeamGrenadier = (x, beamY, min, max, opts = {}) => {
+          const en = new GrenadierEnemy(x, beamY - 31, min, max, opts);
+          en.fixedY = beamY - en.h;
+          en.standOnBeams = true;
+          en.standOnBeams = true;
+          this.enemies.push(en);
+        };
 
         addEnemy(650,  groundY - 30, 560,  940);
         addEnemy(1120, groundY - 30, 980,  1340);
         addEnemy(1600, groundY - 30, 1380, 1700);
+        addGrenadier(1860, groundY - 30, 1740, 2020, { range: 360 });
         addEnemy(2520, groundY - 30, 2420, 2640);
         addEnemy(2820, groundY - 30, 2700, 2920);
-
-        // 避免敵軍生成在高空或平台上方造成「敵軍飛天」錯覺；敵軍統一放在地面巡邏。
 
         addShooter(1280, groundY - 30, 1240, 1340, { patrol: false, range: 460, bulletSpeed: 380 });
         addShooter(2140, groundY - 30, 2060, 2380, { patrol: true,  vx: 20, range: 500, bulletSpeed: 360 });
         addShooter(2925, groundY - 30, 2920, 3240, { patrol: false, range: 520, bulletSpeed: 420 });
 
-        // 困難模式只在原版地圖上加少量敵人，不改平台與物理
+        // 第二／第三行加入少量守兵，畫面更有戰區感，但數量保持克制，避免過難。
+        addBeamEnemy(865, 300, 840, 1000);
+        addBeamGrenadier(1695, 240, 1680, 1810, { range: 300 });
+        addBeamShooter(3045, 320, 3040, 3180, { patrol: false, range: 320, bulletSpeed: 330 });
+
         if (this.mode === "hard") {
           addEnemy(720, groundY - 30, 560, 940);
-          addEnemy(1760, groundY - 30, 1740, 2020);
+          addGrenadier(1760, groundY - 30, 1740, 2020, { range: 380 });
           addShooter(2480, groundY - 30, 2420, 2640, { patrol: false, range: 500, bulletSpeed: 420 });
+          addBeamEnemy(2145, 270, 2140, 2290);
         }
 
-        // 安全修正：所有陸上敵軍只准在地面高度出現。
+        // 安全修正：一般敵軍貼地；只有明確標記的守兵才會固定在第二／第三行平台。
         for (const en of this.enemies) {
-          en.standOnBeams = false;
-          en.y = groundY - en.h;
+          if (en.fixedY != null) {
+            en.standOnBeams = true;
+            en.y = en.fixedY;
+          } else {
+            en.standOnBeams = false;
+            en.y = groundY - en.h;
+          }
           en.vy = 0;
         }
 
@@ -1852,12 +2016,13 @@
           ctx.fillStyle = 'rgba(255,166,92,0.08)'; ctx.fillRect(0, this.H * 0.08, this.W, this.H * 0.34);
           ctx.fillStyle = 'rgba(32,22,26,0.18)'; ctx.fillRect(0, this.H * 0.42, this.W, this.H * 0.32);
         } else {
-          g.addColorStop(0, '#2c3f66');
-          g.addColorStop(0.54, '#5f7ea8');
-          g.addColorStop(1, '#b2c6d8');
+          g.addColorStop(0, '#253552');
+          g.addColorStop(0.54, '#496684');
+          g.addColorStop(1, '#8ea2b4');
           ctx.fillStyle = g; ctx.fillRect(0, 0, this.W, this.H);
-          ctx.fillStyle = 'rgba(255,224,158,0.16)'; ctx.fillRect(0, this.H * 0.10, this.W, this.H * 0.24);
-          ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(0, this.H * 0.42, this.W, this.H * 0.22);
+          ctx.fillStyle = 'rgba(255,224,158,0.12)'; ctx.fillRect(0, this.H * 0.10, this.W, this.H * 0.24);
+          ctx.fillStyle = 'rgba(0,0,0,0.10)'; ctx.fillRect(0, 0, this.W, this.H);
+          ctx.fillStyle = 'rgba(255,255,255,0.04)'; ctx.fillRect(0, this.H * 0.42, this.W, this.H * 0.22);
         }
       }
 
@@ -1869,8 +2034,9 @@
         return arr;
       }
 
-      spawnBlast(x, y) {
-        this.blasts.push({ x, y, life: 0.38, max: 0.38 });
+      spawnBlast(x, y, type = "blast") {
+        const max = type === "puff" ? 0.42 : 0.38;
+        this.blasts.push({ x, y, type, life: max, max });
       }
 
       shuffleArray(arr) {
@@ -2042,6 +2208,12 @@
         this.forceEnemiesToGround();
         this.bomberWarningTimer = Math.max(0, (this.bomberWarningTimer || 0) - dt);
         this.bombFlashTimer = Math.max(0, (this.bombFlashTimer || 0) - dt);
+        this.sceneBannerTimer = Math.max(0, (this.sceneBannerTimer || 0) - dt);
+        const sceneNow = this.getSceneIndex();
+        if (sceneNow !== this.currentScene) {
+          this.currentScene = sceneNow;
+          this.sceneBannerTimer = 2.0;
+        }
         this.flagBonusTimer = Math.max(0, (this.flagBonusTimer || 0) - dt);
         if (this.flagCaptured) {
           this.flagSlideY += (this.flagTargetY - this.flagSlideY) * Math.min(1, dt * 6);
@@ -2125,12 +2297,16 @@
         }
 
         for (const en of this.enemies) {
-          // 陸上敵軍只准沿地面巡邏，先鎖高度再更新。
-          en.y = this.groundY - en.h;
+          if (en.fixedY != null) {
+            en.y = en.fixedY;
+            en.standOnBeams = true;
+          } else {
+            en.y = this.groundY - en.h;
+            en.standOnBeams = false;
+          }
           en.vy = 0;
-          en.standOnBeams = false;
           en.update(dt, this);
-          en.y = this.groundY - en.h;
+          en.y = en.fixedY != null ? en.fixedY : (this.groundY - en.h);
           en.vy = 0;
           if (!en.alive) continue;
           if (this.player.aabb.intersects(en.aabb)) {
@@ -2140,6 +2316,7 @@
             const stomp = falling && (playerBottom - enemyTop) < 14 && (this.player.y < en.y);
             if (stomp) {
               en.alive = false;
+              this.spawnBlast(en.x + en.w * 0.5, en.y + en.h * 0.5, "puff");
               this.player.vy = -260;
               this.beginQuiz({
                 title: T.quizWWITitle, source: QUIZ_WWI,
@@ -2164,12 +2341,16 @@
           const top = this.flag.y;
           const bottom = this.flag.y + this.flag.h;
           const heightRatio = clamp((bottom - hitY) / this.flag.h, 0, 1);
-          const heightBonus = Math.round(200 + heightRatio * 800);
+          let heightBonus = 250;
+          let band = '低位';
+          if (heightRatio >= 0.85) { heightBonus = 1000; band = '最高位'; }
+          else if (heightRatio >= 0.55) { heightBonus = 700; band = '中上位'; }
+          else if (heightRatio >= 0.25) { heightBonus = 450; band = '中段'; }
           const timeBonus = Math.max(0, Math.ceil(this.timeLeft)) * 2;
           const bonus = heightBonus + timeBonus;
           this.score += bonus;
           this.flagTargetY = this.flag.y + this.flag.h - 50;
-          this.flagBonusText = `旗幟高度分 +${bonus}`;
+          this.flagBonusText = `${band} +${bonus}`;
           this.flagBonusTimer = 2.4;
         }
 
@@ -2233,8 +2414,11 @@
         this.forceEnemiesToGround();
         for (const en of this.enemies) {
           if (en.x - this.cameraX > w + 240 || en.x - this.cameraX < -240) continue;
-          // 陸上敵軍繪畫前再次鎖地面高度，杜絕天空士兵。
-          en.y = this.groundY - en.h;
+          if (en.fixedY != null) {
+            en.y = en.fixedY;
+          } else {
+            en.y = this.groundY - en.h;
+          }
           en.vy = 0;
           en.draw(ctx, this.cameraX, this.scale);
         }
@@ -2253,15 +2437,24 @@
         for (const fx of this.blasts) {
           const t = 1 - fx.life / fx.max;
           const sx = (fx.x - this.cameraX) | 0;
-          const r = 8 + t * 24;
-          ctx.fillStyle = `rgba(255,183,3,${0.55 * (1 - t)})`;
-          ctx.beginPath();
-          ctx.arc(sx, fx.y, r, 0, Math.PI * 2);
-          ctx.fill();
+          if (fx.type === "puff") {
+            const r = 5 + t * 14;
+            ctx.fillStyle = `rgba(210,215,225,${0.42 * (1 - t)})`;
+            ctx.beginPath(); ctx.arc(sx - 6, fx.y - 4, r * 0.7, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(sx + 4, fx.y - 8, r * 0.9, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(sx + 12, fx.y - 2, r * 0.65, 0, Math.PI * 2); ctx.fill();
+          } else {
+            const r = 8 + t * 24;
+            ctx.fillStyle = `rgba(255,183,3,${0.55 * (1 - t)})`;
+            ctx.beginPath();
+            ctx.arc(sx, fx.y, r, 0, Math.PI * 2);
+            ctx.fill();
+          }
         }
 
         this.player.draw(ctx, this.cameraX, this.scale, this.effects.invertTimer > 0);
         if (this.state !== "menu") this.drawHUD(ctx);
+        if (this.state === "playing") this.drawSceneBanner(ctx);
         if (this.state === "playing") this.drawBomberWarning(ctx);
 
         if (this.state === "intro") this.drawPanel(ctx, T.introTitle, T.introLines, T.pressToContinue);
@@ -2397,13 +2590,17 @@
         ctx.fillStyle = 'rgba(229,233,240,0.70)';
         ctx.fillRect(flagX + 2, poleBase - 4, 32, 8);
 
-        // 高分/低分提示，令學生明白 Mario 式分數機制
+        // 最高分區縮窄至頂部，並顯示更清楚的高度提示
+        ctx.fillStyle = 'rgba(255,209,102,0.18)';
+        ctx.fillRect(flagX + 8, flagTop, 12, poleH * 0.15);
         ctx.font = 'bold 10px system-ui, sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillStyle = 'rgba(255,209,102,0.85)';
-        ctx.fillText('最高分', flagX + 28, flagTop + 13);
-        ctx.fillStyle = 'rgba(232,229,216,0.62)';
-        ctx.fillText('基本分', flagX + 28, poleBase - 10);
+        ctx.fillStyle = 'rgba(255,209,102,0.92)';
+        ctx.fillText('最高位', flagX + 28, flagTop + 14);
+        ctx.fillStyle = 'rgba(232,229,216,0.72)';
+        ctx.fillText('中上位', flagX + 28, flagTop + poleH * 0.38);
+        ctx.fillText('中段', flagX + 28, flagTop + poleH * 0.68);
+        ctx.fillText('低位', flagX + 28, poleBase - 10);
 
         const flagY = this.flagCaptured ? (this.flagSlideY || flagTop + poleH - 50) : flagTop + 10;
         ctx.fillStyle = '#1f5fbf';
@@ -2446,7 +2643,15 @@
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.fillRect(gateX - postW - 4, topY + gateH + 9, gateW + postW * 2 + 8, 8);
 
-        ctx.strokeStyle = '#f3c74b';
+        ctx.strokeStyle = '#e0a929';
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(gateX, topY + gateH);
+        ctx.lineTo(gateX, topY + 36);
+        ctx.quadraticCurveTo(gateX + gateW / 2, topY - 10, gateX + gateW, topY + 36);
+        ctx.lineTo(gateX + gateW, topY + gateH);
+        ctx.stroke();
+        ctx.strokeStyle = '#ffd166';
         ctx.lineWidth = 4;
         ctx.beginPath();
         ctx.moveTo(gateX, topY + gateH);
@@ -2479,21 +2684,40 @@
         if ((this.bomberWarningTimer || 0) <= 0 && (this.bombFlashTimer || 0) <= 0) return;
         ctx.save();
         if ((this.bombFlashTimer || 0) > 0) {
-          ctx.fillStyle = "rgba(255,80,80,0.08)";
+          ctx.fillStyle = "rgba(255,80,80,0.06)";
           ctx.fillRect(0, 0, this.W, this.H);
         }
         if ((this.bomberWarningTimer || 0) > 0) {
-          const alpha = 0.55 + 0.25 * Math.sin(performance.now() / 80);
-          ctx.fillStyle = `rgba(255,72,90,${alpha})`;
-          ctx.fillRect(this.W / 2 - 138, 76, 276, 30);
-          ctx.strokeStyle = "rgba(255,209,102,0.95)";
+          const alpha = 0.44 + 0.20 * Math.sin(performance.now() / 90);
+          ctx.fillStyle = `rgba(210,64,82,${alpha})`;
+          ctx.fillRect(this.W / 2 - 92, 74, 184, 24);
+          ctx.strokeStyle = "rgba(255,209,102,0.82)";
           ctx.lineWidth = 2;
-          ctx.strokeRect(this.W / 2 - 138.5, 76.5, 276, 30);
+          ctx.strokeRect(this.W / 2 - 91.5, 74.5, 183, 23);
           ctx.fillStyle = "#fff5d6";
-          ctx.font = "900 17px system-ui, sans-serif";
+          ctx.font = "900 14px system-ui, sans-serif";
           ctx.textAlign = "center";
-          ctx.fillText("⚠ 敵機接近，小心空襲", this.W / 2, 97);
+          ctx.fillText("⚠ 空襲警報", this.W / 2, 91);
         }
+        ctx.restore();
+      }
+
+      drawSceneBanner(ctx) {
+        if ((this.sceneBannerTimer || 0) <= 0) return;
+        const title = this.sceneTitles[this.currentScene] || "戰區";
+        ctx.save();
+        const alpha = Math.min(1, this.sceneBannerTimer / 0.35, 1) * Math.min(1, (1.9 - this.sceneBannerTimer) / 0.3 + 0.15);
+        ctx.globalAlpha = Math.max(0.25, Math.min(0.95, alpha));
+        const w = Math.max(180, Math.min(280, ctx.measureText ? 210 : 210));
+        const x = this.W - 242;
+        ctx.fillStyle = 'rgba(0,0,0,0.58)';
+        ctx.fillRect(x, 18, 224, 34);
+        ctx.strokeStyle = 'rgba(255,209,102,0.72)';
+        ctx.strokeRect(x + 0.5, 18.5, 223, 33);
+        ctx.fillStyle = '#ffd166';
+        ctx.font = '800 14px system-ui, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(title, x + 12, 40);
         ctx.restore();
       }
 
@@ -2529,17 +2753,19 @@
           ctx.fillText(`⚠ 左右反轉：${Math.ceil(this.effects.invertTimer)}s`, pad + 12, pad + 54);
 
           const sec = Math.ceil(this.effects.invertTimer);
-          ctx.save();
-          ctx.fillStyle = "rgba(0,0,0,0.35)";
-          ctx.fillRect(0, 0, this.W, this.H);
-          ctx.textAlign = "center"; ctx.textBaseline = "middle";
-          ctx.fillStyle = "#ff5a6a";
-          ctx.font = "900 52px system-ui, sans-serif";
-          ctx.fillText("⚠ 操作反轉！", this.W / 2, this.H / 2 - 30);
-          ctx.fillStyle = "#ffd166";
-          ctx.font = "800 30px system-ui, sans-serif";
-          ctx.fillText(`剩餘 ${sec} 秒`, this.W / 2, this.H / 2 + 30);
-          ctx.restore();
+          if (this.effects.invertTimer > 3.0) {
+            ctx.save();
+            ctx.fillStyle = "rgba(0,0,0,0.28)";
+            ctx.fillRect(0, 0, this.W, this.H);
+            ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.fillStyle = "#ff5a6a";
+            ctx.font = "900 50px system-ui, sans-serif";
+            ctx.fillText("⚠ 操作反轉！", this.W / 2, this.H / 2 - 24);
+            ctx.fillStyle = "#ffd166";
+            ctx.font = "800 28px system-ui, sans-serif";
+            ctx.fillText(`剩餘 ${sec} 秒`, this.W / 2, this.H / 2 + 28);
+            ctx.restore();
+          }
         }
       }
 
