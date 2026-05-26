@@ -518,7 +518,7 @@
       </div>
       <div class="missionPanels">
         <div class="missionPanel"><b>學習目標</b><br>辨識第一次世界大戰爆發的長期與短期原因，理解戰爭對前線與後方的影響，並評估巴黎和會及《凡爾賽條約》對戰後秩序的意義與局限。</div>
-        <div class="missionPanel"><b>得分與注意事項</b><br>收集情報、答對題目、取得補給、觸碰旗杆及保留時間均可得分；被敵軍、鐵絲網、炮彈或空襲擊中則會扣減生命，生命耗盡即任務失敗。</div>
+        <div class="missionPanel"><b>得分與注意事項</b><br>收集情報、答對題目、取得補給、觸碰旗杆及保留時間均可得分；每個回血藥可回復 2 個心心，上限為 4 個心心；被敵軍、鐵絲網、炮彈或空襲擊中則會扣減生命，生命耗盡即任務失敗。</div>
       </div>
       <div class="missionPanel" style="margin-bottom:14px;">
         <b>任務路線</b><br>
@@ -543,7 +543,7 @@
             <button id="btnHard" class="secondary">開始困難模式</button>
           </div>
           <p class="smallNote">
-            請先輸入玩家名稱。簡易模式較寬鬆；困難模式包含更多障礙及混合題目。兩個模式均以 3 個心心表示生命，完成或失敗後會自動上載成績。
+            請先輸入玩家名稱。簡易模式較寬鬆；困難模式包含更多障礙及混合題目。兩個模式均以 4 個心心表示生命，完成或失敗後會自動上載成績。
           </p>
         </div>
         <div id="leaderboardBox">
@@ -2280,7 +2280,7 @@
 
         this.W = 960; this.H = 540;
         this.state = "menu";
-        this.score = 0; this.lives = 3; this.maxLives = 3;
+        this.score = 0; this.lives = 4; this.maxLives = 4;
         this.mode = "easy";
         this.playerName = "無名和平特派員";
         this.submitted = false;
@@ -2450,8 +2450,8 @@
         this.mode = mode === "hard" ? "hard" : "easy";
         this.playerName = cleanName(name);
         this.score = 0;
-        this.maxLives = 3;
-        this.lives = 3;
+        this.maxLives = 4;
+        this.lives = 4;
         this.timeLimit = this.mode === "hard" ? 130 : 150;
         this.timeLeft = this.timeLimit;
         this.effects.invertTimer = 0;
@@ -2485,15 +2485,21 @@
         if (this.submitted) return;
         this.submitted = true;
         this.finalStatus = "正在自動上載成績……";
+        const correct = this.correctCount || 0;
+        const total = this.totalQuizCount || 0;
+        const successRate = total ? Math.round(correct / total * 100) : 0;
+        const resultLabel = finalState === "win" ? "任務成功" : "任務失敗";
         const payload = {
           name: this.playerName,
           mode: this.mode,
+          period: "1914–1919",
           score: Math.floor(this.score),
-          correct: this.correctCount || 0,
-          total: this.totalQuizCount || 0,
+          correct,
+          total,
+          successRate,
           time: Math.max(0, Math.ceil(this.timeLimit - this.timeLeft)),
           files: this.items.filter(i => i.collected).length,
-          result: finalState
+          result: resultLabel
         };
         if (!isFormalWebsite()) {
           this.finalStatus = "預覽版已關閉網絡連線，未上載成績；正式網站會自動上載。";
@@ -2523,7 +2529,7 @@
       resetAll() {
         this.state = "menu";
         document.body.classList.remove("is-playing");
-        this.score = 0; this.maxLives = 3; this.lives = this.maxLives; this.timeLeft = this.timeLimit;
+        this.score = 0; this.maxLives = 4; this.lives = this.maxLives; this.timeLeft = this.timeLimit;
         this.effects.invertTimer = 0;
         this.bomberWarningTimer = 0;
         this.bombFlashTimer = 0;
@@ -3167,8 +3173,10 @@
           if (!it.collected && this.player.aabb.intersects(it.aabb)) {
             it.collected = true;
             if (this.lives < this.maxLives) {
-              this.lives += 1;
-              this.score += 80;
+              const beforeLives = this.lives;
+              this.lives = Math.min(this.maxLives, this.lives + 2);
+              const healed = this.lives - beforeLives;
+              this.score += 80 + healed * 20;
             } else {
               this.score += 120;
               this.timeLeft = Math.min(this.timeLimit, this.timeLeft + 1.0);
@@ -3729,8 +3737,8 @@
         ctx.font = '13px "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", Arial, sans-serif';
         ctx.fillStyle = "rgba(232,229,216,0.92)";
         ctx.fillText(`${T.hudScore}：${score}`, pad + 12, pad + 42);
-        for (let i = 0; i < 3; i++) {
-          this.drawHeartIcon(ctx, pad + 148 + i * 28, pad + 22, 22, i < this.lives);
+        for (let i = 0; i < this.maxLives; i++) {
+          this.drawHeartIcon(ctx, pad + 148 + i * 27, pad + 22, 22, i < this.lives);
         }
         ctx.fillStyle = time <= 15 ? "rgba(255,90,106,0.98)" : "rgba(243,199,75,0.98)";
         ctx.fillText(`${T.hudTime}：${time}s`, pad + 262, pad + 42);
