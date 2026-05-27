@@ -2187,10 +2187,17 @@
         const input = game.input;
         const inverted = game.effects.invertTimer > 0;
         const hardForwardOnly = game.mode === "hard";
-        // 困難模式設計為「一去不返」：不可向左退，只能停下或向右前進。
-        // 為免操作反轉效果令困難模式完全不能前進，困難模式會忽略水平反轉。
-        const LEFT = hardForwardOnly ? false : (inverted ? input.right : input.left);
-        const RIGHT = hardForwardOnly ? input.right : (inverted ? input.left : input.right);
+        // 簡易模式：正常左右移動；中懲罰時左右反轉。
+        // 困難模式：正常只能向右；中懲罰時 4 秒內只能向左。
+        // 注意：不是自動向左行，學生仍要按左鍵／方向盤左半邊才會移動。
+        let LEFT, RIGHT;
+        if (hardForwardOnly) {
+          LEFT = inverted ? input.left : false;
+          RIGHT = inverted ? false : input.right;
+        } else {
+          LEFT = inverted ? input.right : input.left;
+          RIGHT = inverted ? input.left : input.right;
+        }
 
         this.invuln = Math.max(0, this.invuln - dt);
         this.coyote = Math.max(0, this.coyote - dt);
@@ -2420,13 +2427,11 @@
           // iPad / Safari 版不用中心點計算，直接把方向區分成左、中、右三段。
           // 這可避免只觸發右移、左移失效，亦即按下左半邊會即時後退。
           if (ratio < 0.43) {
-            if (this.mode === "hard") {
-              this.input.left = false;
-              this.input.right = false;
-            } else {
-              this.input.left = true;
-              this.input.right = false;
-            }
+            // 方向盤只負責記錄「玩家正在按左」。
+            // 是否准許向左，由 Player.update() 根據模式處理：
+            // easy = 可左；hard 正常 = 忽略左；hard 懲罰 = 只准左。
+            this.input.left = true;
+            this.input.right = false;
           } else if (ratio > 0.57) {
             this.input.left = false;
             this.input.right = true;
@@ -3080,7 +3085,9 @@
             this.resetAll(); return;
           }
           if (this.state !== "playing") return;
-          if (e.code === "ArrowLeft" && this.mode !== "hard") this.input.left = true;
+          // 鍵盤同樣只記錄輸入；實際是否准許向左，由 Player.update() 控制。
+          // 這樣困難模式「逆行懲罰」4 秒內才能正確按左移動。
+          if (e.code === "ArrowLeft") this.input.left = true;
           if (e.code === "ArrowRight") this.input.right = true;
           if (e.code === "Space" || e.code === "ArrowUp") {
             if (!this.input.jump) this.input.jumpPressed = true;
@@ -3230,7 +3237,15 @@
             this.beginQuiz({
               title: T.quizStarTitle, source: QUIZ_STARS,
               onCorrect: () => { this.score += 200; this.scheduleQuizContinue(() => { this.clearInput(); this.setState("playing"); }); },
-              onWrong:   () => { this.scheduleQuizContinue(() => { this.clearInput(); this.state = "playing"; this.effects.invertTimer = 4; }); }
+              onWrong:   () => {
+                this.scheduleQuizContinue(() => {
+                  this.clearInput();
+                  this.setState("playing");
+                  // 答錯情報題：啟動 4 秒方向懲罰。
+                  // 簡易模式 = 左右反轉；困難模式 = 只可向左移動 4 秒，之後回復只可向右。
+                  this.effects.invertTimer = 4;
+                });
+              }
             });
             return;
           }
@@ -3792,7 +3807,8 @@
         if (this.effects.invertTimer > 0) {
           ctx.fillStyle = "rgba(255,90,106,0.95)";
           ctx.font = '800 13px "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", Arial, sans-serif';
-          ctx.fillText(`⚠ 左右反轉：${Math.ceil(this.effects.invertTimer)}s`, pad + 12, pad + 54);
+          const invertLabel = this.mode === "hard" ? "⚠ 逆行懲罰：只可向左" : "⚠ 左右反轉";
+          ctx.fillText(`${invertLabel}：${Math.ceil(this.effects.invertTimer)}s`, pad + 12, pad + 54);
 
           const sec = Math.ceil(this.effects.invertTimer);
           if (this.effects.invertTimer > 3.0) {
@@ -3802,7 +3818,7 @@
             ctx.textAlign = "center"; ctx.textBaseline = "middle";
             ctx.fillStyle = "#ff5a6a";
             ctx.font = '900 50px "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", Arial, sans-serif';
-            ctx.fillText("⚠ 操作反轉！", this.W / 2, this.H / 2 - 24);
+            ctx.fillText(this.mode === "hard" ? "⚠ 逆行懲罰！" : "⚠ 操作反轉！", this.W / 2, this.H / 2 - 24);
             ctx.fillStyle = "#ffd166";
             ctx.font = '800 28px "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", Arial, sans-serif';
             ctx.fillText(`剩餘 ${sec} 秒`, this.W / 2, this.H / 2 + 28);
