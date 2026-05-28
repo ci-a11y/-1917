@@ -2188,11 +2188,14 @@
         const inverted = game.effects.invertTimer > 0;
         const hardForwardOnly = game.mode === "hard";
         // 簡易模式：正常左右移動；中懲罰時左右反轉。
-        // 困難模式：正常只能向右；中懲罰時 4 秒內只能向左。
-        // 注意：不是自動向左行，學生仍要按左鍵／方向盤左半邊才會移動。
+        // 困難模式：正常只能向右；中懲罰時 4 秒內按右鍵／右半方向盤會向左。
+        // 注意：不是自動向左行，學生仍要自己按住右鍵／右半方向盤。
         let LEFT, RIGHT;
         if (hardForwardOnly) {
-          LEFT = inverted ? input.left : false;
+          // 困難模式正常：右鍵 = 向右；左鍵無效。
+          // 困難模式懲罰：仍然按「右鍵／右半方向盤」，但角色會向左行。
+          // 這樣學生不用突然轉手按左，避免手機版答錯後誤以為卡關。
+          LEFT = inverted ? input.right : false;
           RIGHT = inverted ? false : input.right;
         } else {
           LEFT = inverted ? input.right : input.left;
@@ -3242,7 +3245,7 @@
                   this.clearInput();
                   this.setState("playing");
                   // 答錯情報題：啟動 4 秒方向懲罰。
-                  // 簡易模式 = 左右反轉；困難模式 = 只可向左移動 4 秒，之後回復只可向右。
+                  // 簡易模式 = 左右反轉；困難模式 = 4 秒內按右鍵會向左，之後回復按右鍵向右。
                   this.effects.invertTimer = 4;
                 });
               }
@@ -3805,25 +3808,36 @@
         ctx.fillText(`補給：${this.items.filter(i => i.collected).length}/${this.items.length}`, pad + 314, pad + 61);
 
         if (this.effects.invertTimer > 0) {
-          ctx.fillStyle = "rgba(255,90,106,0.95)";
-          ctx.font = '800 13px "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", Arial, sans-serif';
-          const invertLabel = this.mode === "hard" ? "⚠ 逆行懲罰：只可向左" : "⚠ 左右反轉";
-          ctx.fillText(`${invertLabel}：${Math.ceil(this.effects.invertTimer)}s`, pad + 12, pad + 54);
-
           const sec = Math.ceil(this.effects.invertTimer);
-          if (this.effects.invertTimer > 3.0) {
-            ctx.save();
-            ctx.fillStyle = "rgba(0,0,0,0.28)";
-            ctx.fillRect(0, 0, this.W, this.H);
-            ctx.textAlign = "center"; ctx.textBaseline = "middle";
-            ctx.fillStyle = "#ff5a6a";
-            ctx.font = '900 50px "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", Arial, sans-serif';
-            ctx.fillText(this.mode === "hard" ? "⚠ 逆行懲罰！" : "⚠ 操作反轉！", this.W / 2, this.H / 2 - 24);
-            ctx.fillStyle = "#ffd166";
-            ctx.font = '800 28px "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", Arial, sans-serif';
-            ctx.fillText(`剩餘 ${sec} 秒`, this.W / 2, this.H / 2 + 28);
-            ctx.restore();
-          }
+          const invertLabel = this.mode === "hard"
+            ? "⚠ 逆行懲罰：按右鍵會向左"
+            : "⚠ 左右反轉";
+
+          // HUD 狀態列：整個 4 秒都保留，避免學生以為手機版卡住。
+          ctx.save();
+          ctx.fillStyle = "rgba(255,90,106,0.96)";
+          ctx.font = '800 13px "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", Arial, sans-serif';
+          ctx.fillText(`${invertLabel}：${sec}s`, pad + 12, pad + 82);
+
+          // 畫面中央提示：整個 4 秒都保留，但不全屏遮擋操作。
+          const bannerText = this.mode === "hard"
+            ? `逆行懲罰：繼續按右，角色會向左｜${sec}s`
+            : `操作反轉：左右相反｜${sec}s`;
+          ctx.font = '900 20px "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", Arial, sans-serif';
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          const bw = Math.min(this.W - 48, ctx.measureText(bannerText).width + 36);
+          const bx = (this.W - bw) / 2;
+          const by = 84;
+          roundedRectPath(ctx, bx, by, bw, 42, 14);
+          ctx.fillStyle = "rgba(18, 9, 14, 0.84)";
+          ctx.fill();
+          ctx.strokeStyle = "rgba(255,90,106,0.82)";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          ctx.fillStyle = "#ffd166";
+          ctx.fillText(bannerText, this.W / 2, by + 22);
+          ctx.restore();
         }
       }
 
